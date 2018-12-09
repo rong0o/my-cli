@@ -1,0 +1,87 @@
+const program = require('commander');
+const path = require('path');
+const fse = require('fs-extra');
+const chalk = require('chalk');
+const ora = require('ora');
+const Metalsmith = require('Metalsmith');
+const cprocess = require('child_process');
+const inquirer = require('inquirer');
+
+program
+  .usage('<template-name> [project-name]')
+  .parse(process.argv)
+
+program.on('--help', () => {
+  console.log(chalk.yellow('#使用方法'))
+  console.log('# my add <template-name> [project-name]')
+})
+
+if (!program.args.length) {
+  program.help()
+  return;
+}
+
+let template = program.args[0];
+let proj = program.args[1];
+
+if(!template){
+  console.log(chalk.red('请输入模板名称'))
+  return;
+}
+
+if(!proj){
+  console.log(chalk.red('请输入项目名称'))
+  return;
+}
+
+const projPath = path.join(process.cwd(),'/',proj)
+getProjName(proj);
+
+
+function getProjName (proj){
+  if(fse.existsSync(proj)){
+    inquirer.prompt([{
+      type: 'confirm',
+      message: '该目录已存在，是否覆盖？',
+      name: 'ok'
+    }],(ans)=>{
+      if(ans.ok){
+        fse.removeSync(proj)
+        run()
+      }else{
+        process.exit(1);
+      }
+    })
+  }else{
+    run();
+  }
+}
+
+function run(){
+  //下载模板
+  console.log(chalk.green(`使用模板：${template}创建项目`));
+  const  spinner = ora('正在下载模板');
+  spinner.start();
+  cprocess.exec(`tnpm i ${template}`,(err, data)=>{
+    spinner.stop();
+    if(err){
+      console.log(chalk.red('下载模板失败', err,message));
+    }
+    console.log(chalk.green('模板下载完毕！'));
+    console.log(chalk.green('开始创建项目'));
+    const tplPath = `${process.cwd()}/node_modules/${template}`;
+    
+    //复制模板
+    Metalsmith(`${tplPath}/template`)
+    .source('.')
+    .destination(projPath)
+    .build((err)=>{
+      if(err){
+        console.log(chalk.red('创建项目失败'),err)
+      }else{
+        console.log(chalk.green('创建项目成功！'));
+      }
+    })
+  })  
+}
+
